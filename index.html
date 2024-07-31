@@ -1,0 +1,163 @@
+<html><head><base href="https://websimcreationengine.ai/linear-regression-simulator/" />
+<title>Linear Regression Simulator</title>
+<script src="https://cdn.jsdelivr.net/pyodide/v0.22.1/full/pyodide.js"></script>
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: #f0f0f0;
+  }
+  .container {
+    background-color: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  }
+  h1 {
+    color: #333;
+    text-align: center;
+  }
+  .slider-container {
+    margin-bottom: 20px;
+  }
+  .slider-container label {
+    display: inline-block;
+    width: 150px;
+  }
+  input[type="range"] {
+    width: 300px;
+  }
+  #plot {
+    width: 100%;
+    height: 500px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Linear Regression Simulator</h1>
+  
+  <div class="slider-container">
+    <label for="slope">Slope (a):</label>
+    <input type="range" id="slope" min="-5" max="5" step="0.1" value="1">
+    <span id="slope-value">1</span>
+  </div>
+  
+  <div class="slider-container">
+    <label for="noise">Noise (c):</label>
+    <input type="range" id="noise" min="0" max="50" step="1" value="10">
+    <span id="noise-value">10</span>
+  </div>
+  
+  <div class="slider-container">
+    <label for="samples">Samples (n):</label>
+    <input type="range" id="samples" min="10" max="500" step="10" value="100">
+    <span id="samples-value">100</span>
+  </div>
+  
+  <div id="plot"></div>
+</div>
+
+<script>
+async function main() {
+  let pyodide = await loadPyodide();
+  await pyodide.loadPackage("numpy");
+  await pyodide.loadPackage("scikit-learn");
+  
+  const plot = document.getElementById('plot');
+  
+  function updatePlot() {
+    const a = parseFloat(document.getElementById('slope').value);
+    const c = parseFloat(document.getElementById('noise').value);
+    const n = parseInt(document.getElementById('samples').value);
+    
+    document.getElementById('slope-value').textContent = a;
+    document.getElementById('noise-value').textContent = c;
+    document.getElementById('samples-value').textContent = n;
+    
+    pyodide.runPython(`
+import numpy as np
+from sklearn.linear_model import LinearRegression
+
+# Generate sample data
+n = ${n}
+x = np.linspace(-100, 100, n).reshape(-1, 1)
+y = ${a} * x + 50 + ${c} * np.random.randn(n, 1)
+
+# Perform linear regression
+model = LinearRegression()
+model.fit(x, y)
+
+# Generate points for the regression line
+x_reg = np.array([-100, 100]).reshape(-1, 1)
+y_reg = model.predict(x_reg)
+
+# Prepare data for plotting
+x_list = x.flatten().tolist()
+y_list = y.flatten().tolist()
+x_reg_list = x_reg.flatten().tolist()
+y_reg_list = y_reg.flatten().tolist()
+
+import json
+data = json.dumps({
+    'x': x_list,
+    'y': y_list,
+    'x_reg': x_reg_list,
+    'y_reg': y_reg_list,
+    'slope': model.coef_[0][0],
+    'intercept': model.intercept_[0]
+})
+    `);
+    
+    const data = JSON.parse(pyodide.globals.get('data'));
+    
+    const trace1 = {
+      x: data.x,
+      y: data.y,
+      mode: 'markers',
+      type: 'scatter',
+      name: 'Data Points'
+    };
+    
+    const trace2 = {
+      x: data.x_reg,
+      y: data.y_reg,
+      mode: 'lines',
+      type: 'scatter',
+      name: 'Regression Line',
+      line: {color: 'red'}
+    };
+    
+    const layout = {
+      title: 'Linear Regression',
+      xaxis: {title: 'X'},
+      yaxis: {title: 'Y'},
+      annotations: [
+        {
+          x: 0.05,
+          y: 0.95,
+          xref: 'paper',
+          yref: 'paper',
+          text: `y = ${data.slope.toFixed(2)}x + ${data.intercept.toFixed(2)}`,
+          showarrow: false,
+          font: {size: 16}
+        }
+      ]
+    };
+    
+    Plotly.newPlot(plot, [trace1, trace2], layout);
+  }
+  
+  document.getElementById('slope').addEventListener('input', updatePlot);
+  document.getElementById('noise').addEventListener('input', updatePlot);
+  document.getElementById('samples').addEventListener('input', updatePlot);
+  
+  updatePlot();
+}
+
+main();
+</script>
+</body></html>
